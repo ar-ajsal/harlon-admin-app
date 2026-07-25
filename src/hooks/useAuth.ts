@@ -20,6 +20,23 @@ interface UseAuthReturn {
   logout: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
+  clearError: () => void;
+}
+
+/**
+ * Safely extracts a human-readable message from any thrown value.
+ * Handles: ApiError (from our interceptor), Error, and unknown objects.
+ */
+function extractErrorMessage(err: unknown): string {
+  // Our normalised ApiError from the axios interceptor
+  if (err && typeof err === 'object' && 'message' in err) {
+    return (err as ApiError).message ?? 'An unexpected error occurred.';
+  }
+  // Plain JS Error
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return 'An unexpected error occurred. Please try again.';
 }
 
 export function useAuth(): UseAuthReturn {
@@ -27,33 +44,38 @@ export function useAuth(): UseAuthReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const login = useCallback(async (values: LoginFormValues) => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  const login = useCallback(
+    async (values: LoginFormValues) => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-      const response = await AuthService.login({ password: values.password });
+        const response = await AuthService.login({ password: values.password });
 
-      if (!response.success || !response.data?.token) {
-        throw new Error(response.message ?? 'Login failed. Please try again.');
+        // The server returns success:false with a message on bad password.
+        // This is not an axios error — it's a successful HTTP 200 with a failure body.
+        if (!response.success || !response.data?.token) {
+          setError(response.message ?? 'Login failed. Please try again.');
+          return;
+        }
+
+        await AuthStore.setToken(response.data.token);
+        router.replace('/(app)/dashboard');
+      } catch (err: unknown) {
+        setError(extractErrorMessage(err));
+      } finally {
+        setIsLoading(false);
       }
-
-      await AuthStore.setToken(response.data.token);
-      router.replace('/(app)/dashboard');
-    } catch (err: unknown) {
-      const apiErr = err as ApiError;
-      setError(
-        apiErr?.message ?? 'An unexpected error occurred. Please try again.',
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [router]);
+    },
+    [router],
+  );
 
   const logout = useCallback(async () => {
     await AuthStore.clearToken();
     router.replace('/(auth)/login');
   }, [router]);
 
-  return { login, logout, isLoading, error };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { login, logout, isLoading, error, clearError };
 }

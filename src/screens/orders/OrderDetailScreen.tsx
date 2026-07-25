@@ -23,22 +23,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useOrderDetail } from '@/hooks/useOrders';
 import { OrderItem, OrderTimeline } from '@/types/order.types';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatCurrency(amount: number): string {
-  return `₹${amount.toLocaleString('en-IN')}`;
-}
-
-function formatDateTime(dateString: string): string {
-  return new Date(dateString).toLocaleString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+import { formatCurrency, formatDateTime } from '@/utils/formatters';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 

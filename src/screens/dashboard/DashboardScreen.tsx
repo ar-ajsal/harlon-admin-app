@@ -3,11 +3,17 @@
  *
  * Displays key business metrics and a quick view of recent orders.
  * Pulls real data from the stats endpoint with placeholder fallback.
+ *
+ * Fixes applied:
+ *  - isRefreshing now reflects actual refetch state
+ *  - Greeting is time-aware (morning/afternoon/evening)
+ *  - formatCurrency and formatDate imported from shared utils (no duplication)
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { StatCard } from '@/components/ui/StatCard';
 import { Card } from '@/components/ui/Card';
@@ -20,20 +26,7 @@ import { Spacing } from '@/constants/spacing';
 import { useDashboardStats, useOrdersList } from '@/hooks/useOrders';
 import { useAuth } from '@/hooks/useAuth';
 import { Order } from '@/types/order.types';
-import { useRouter } from 'expo-router';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatCurrency(amount: number): string {
-  return `₹${amount.toLocaleString('en-IN')}`;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-  });
-}
+import { formatCurrency, formatShortDate, getGreeting } from '@/utils/formatters';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -45,7 +38,7 @@ function OrderRow({ order, onPress }: { order: Order; onPress: () => void }) {
         <Text style={styles.orderTotal}>{formatCurrency(order.total)}</Text>
       </View>
       <View style={styles.orderRowBottom}>
-        <Text style={styles.orderDate}>{formatDate(order.createdAt)}</Text>
+        <Text style={styles.orderDate}>{formatShortDate(order.createdAt)}</Text>
         <Badge status={order.status} />
       </View>
     </Card>
@@ -57,6 +50,7 @@ function OrderRow({ order, onPress }: { order: Order; onPress: () => void }) {
 export default function DashboardScreen() {
   const router = useRouter();
   const { logout } = useAuth();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const {
     data: stats,
@@ -71,10 +65,10 @@ export default function DashboardScreen() {
     refetch: refetchOrders,
   } = useOrdersList({ limit: 5, sortBy: 'createdAt', sortOrder: 'desc' });
 
-  const isRefreshing = false;
-
   const onRefresh = async () => {
+    setIsRefreshing(true);
     await Promise.all([refetchStats(), refetchOrders()]);
+    setIsRefreshing(false);
   };
 
   if (statsLoading && !stats) {
@@ -92,7 +86,7 @@ export default function DashboardScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Good morning 👋</Text>
+          <Text style={styles.greeting}>{getGreeting()} 👋</Text>
           <Text style={styles.storeName}>Harlon Admin</Text>
         </View>
         <Card onPress={logout} style={styles.logoutButton} padding={false}>
@@ -115,19 +109,11 @@ export default function DashboardScreen() {
         {/* Today's Stats */}
         <Text style={styles.sectionTitle}>Today</Text>
         <View style={styles.statsGrid}>
-          <StatCard
-            icon="📦"
-            label="Orders"
-            value={stats?.todayOrders ?? 0}
-          />
-          <StatCard
-            icon="💰"
-            label="Revenue"
-            value={formatCurrency(stats?.todayRevenue ?? 0)}
-          />
+          <StatCard icon="📦" label="Orders"  value={stats?.todayOrders ?? 0} />
+          <StatCard icon="💰" label="Revenue" value={formatCurrency(stats?.todayRevenue ?? 0)} />
         </View>
 
-        {/* Order Breakdown */}
+        {/* Order Status Breakdown */}
         <Text style={styles.sectionTitle}>Order Status</Text>
         <View style={styles.statsGrid}>
           <StatCard icon="⏳" label="Pending"   value={stats?.pendingOrders ?? 0} />
@@ -139,10 +125,7 @@ export default function DashboardScreen() {
         {/* Recent Orders */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Orders</Text>
-          <Text
-            style={styles.seeAll}
-            onPress={() => router.push('/(app)/orders')}
-          >
+          <Text style={styles.seeAll} onPress={() => router.push('/(app)/orders')}>
             See all →
           </Text>
         </View>
@@ -174,8 +157,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.dark.bg,
   },
-
-  // ─── Header ─────────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -207,8 +188,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: Colors.text.dark.secondary,
   },
-
-  // ─── Scroll ─────────────────────────────────────────────────────────────
   scroll: {
     flex: 1,
   },
@@ -218,8 +197,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing[12],
     gap: Spacing[3],
   },
-
-  // ─── Section ────────────────────────────────────────────────────────────
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -239,15 +216,11 @@ const styles = StyleSheet.create({
     color: Colors.brand.primary,
     fontWeight: FontWeight.medium,
   },
-
-  // ─── Stats Grid ─────────────────────────────────────────────────────────
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing[3],
   },
-
-  // ─── Order Rows ──────────────────────────────────────────────────────────
   ordersList: {
     gap: Spacing[3],
   },

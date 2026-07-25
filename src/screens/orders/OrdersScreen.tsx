@@ -31,6 +31,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { useOrdersList } from '@/hooks/useOrders';
 import { Order, OrderStatus } from '@/types/order.types';
+import { formatCurrency, formatFullDate } from '@/utils/formatters';
 
 // ─── Filter Tabs ──────────────────────────────────────────────────────────────
 
@@ -44,20 +45,6 @@ const FILTERS: FilterOption[] = [
   { label: 'Delivered', value: 'delivered' },
   { label: 'Cancelled', value: 'cancelled' },
 ];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatCurrency(amount: number): string {
-  return `₹${amount.toLocaleString('en-IN')}`;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: '2-digit',
-  });
-}
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
 
@@ -79,7 +66,7 @@ function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
         </View>
         <View style={styles.orderRight}>
           <Text style={styles.orderTotal}>{formatCurrency(order.total)}</Text>
-          <Text style={styles.orderDate}>{formatDate(order.createdAt)}</Text>
+          <Text style={styles.orderDate}>{formatFullDate(order.createdAt)}</Text>
         </View>
       </View>
       <View style={styles.orderCardBottom}>

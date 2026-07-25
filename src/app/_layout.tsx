@@ -4,27 +4,35 @@
  * Responsibilities:
  *  1. Provide QueryClient to the entire app (React Query)
  *  2. Provide SafeAreaProvider
- *  3. Handle SplashScreen hide logic
+ *  3. Keep splash screen visible until auth check in index.tsx completes
  *  4. Set global status bar style
+ *
+ * IMPORTANT: We do NOT call SplashScreen.hideAsync() here.
+ * It is called from index.tsx AFTER the auth check resolves,
+ * so there is never a blank frame between splash and the first screen.
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import '@/global.css';
 
-// Keep the splash screen visible until we're ready
+// Prevent auto-hide — we control exactly when the splash hides.
 SplashScreen.preventAutoHideAsync();
 
-// Configure the global QueryClient.
-// These settings are production-appropriate:
-//  - 2 retries on failure (3rd attempt is the final one)
-//  - No refetch on window focus for mutations
-//  - Errors do not cause global throw (handled per-query)
+/**
+ * Global QueryClient configuration.
+ *
+ * retry: 2      → 3 total attempts before showing error state
+ * staleTime     → how long cached data is considered fresh (no background refetch)
+ * refetchOnWindowFocus: false → don't refetch every time user switches apps
+ *                              (can enable this in Phase 2 for live order updates)
+ */
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -33,24 +41,20 @@ const queryClient = new QueryClient({
       staleTime: 30 * 1000, // 30 seconds default
     },
     mutations: {
-      retry: 0,
+      retry: 0, // Never retry mutations — double-submitting an order is worse than an error
     },
   },
 });
 
 export default function RootLayout() {
-  useEffect(() => {
-    // Hide splash screen once the layout is mounted.
-    // The auth check in index.tsx will handle navigation before this renders.
-    SplashScreen.hideAsync();
-  }, []);
-
   return (
-    <QueryClientProvider client={queryClient}>
-      <SafeAreaProvider>
-        <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false }} />
-      </SafeAreaProvider>
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <SafeAreaProvider>
+          <StatusBar style="light" />
+          <Stack screenOptions={{ headerShown: false }} />
+        </SafeAreaProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 }
